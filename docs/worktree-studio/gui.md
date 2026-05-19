@@ -16,6 +16,7 @@ Main screen:
 - Action status: running and failed actions are shown directly on the worktree card with compact icons.
 - Details: click a worktree card to open its runs and logs.
 - Settings: configure actions from the same page; actions are saved to `commands[]` in `worktree-studio.json`.
+- Pull: fast-forward a branch worktree from its configured upstream with `git pull --ff-only`.
 - Remove: delete a non-root worktree from the card menu. Dirty branch worktrees are committed before removal;
   dirty detached worktrees are removed with `git worktree remove --force`.
 

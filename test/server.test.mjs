@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -206,6 +206,57 @@ test("marks the primary git worktree as main when GUI starts from a linked workt
         assert.equal(currentWorktree?.isMain, false);
         assert.equal(currentWorktree?.isCurrent, true);
         assert.equal(currentWorktree?.removable, false);
+    } finally {
+        await server.close();
+    }
+});
+
+test("pulls a worktree through the API", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const origin = join(root, "origin.git");
+    const upstream = join(root, "upstream");
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "feature");
+    await mkdir(upstream);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await execFileAsync("git", ["init", "--initial-branch=main"], { cwd: upstream });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: upstream });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: upstream });
+    await writeFile(join(upstream, "README.md"), "before\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: upstream });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: upstream });
+    await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: upstream });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: upstream });
+    await execFileAsync("git", ["clone", origin, dir]);
+    await execFileAsync("git", ["worktree", "add", "-b", "feature/pull", worktreeDir, "origin/main"], { cwd: dir });
+    await execFileAsync("git", ["branch", "--set-upstream-to=origin/main", "feature/pull"], { cwd: worktreeDir });
+    await writeFile(join(upstream, "README.md"), "after\n");
+    await execFileAsync("git", ["commit", "-am", "remote update"], { cwd: upstream });
+    await execFileAsync("git", ["push", "origin", "main"], { cwd: upstream });
+    await saveProjectConfig(dir, {
+        version: 1,
+        commands: [],
+        pipelines: [],
+        worktrees: { include: [".", "feature/pull"], exclude: [] },
+    });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees/pull?token=${server.token}`;
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ worktree: "feature/pull" }),
+        });
+        const text = await response.text();
+        assert.equal(response.status, 200, text);
+        const payload = JSON.parse(text);
+        assert.equal(payload.pulled?.branch, "feature/pull");
+        assert.equal(await readFile(join(worktreeDir, "README.md"), "utf8"), "after\n");
+        assert.equal(
+            payload.worktrees.find((worktree) => worktree.branch === "feature/pull")?.behind,
+            0,
+        );
     } finally {
         await server.close();
     }

@@ -2,6 +2,7 @@ import {
     AlertCircleIcon,
     CheckCircle2Icon,
     CircleIcon,
+    DownloadIcon,
     FolderGit2Icon,
     HistoryIcon,
     Loader2Icon,
@@ -105,6 +106,7 @@ interface WorktreeInfo {
     behind?: number;
     prunable?: boolean;
     detached?: boolean;
+    bare?: boolean;
     locked?: string;
     reason?: string;
     lastRun?: string;
@@ -227,6 +229,7 @@ export function App() {
     const [stopping, setStopping] = useState<Record<string, boolean>>({});
     const [confirmRun, setConfirmRun] = useState<ConfirmRun | null>(null);
     const [confirmDeleteWorktree, setConfirmDeleteWorktree] = useState<WorktreeInfo | null>(null);
+    const [pullingWorktree, setPullingWorktree] = useState<Record<string, boolean>>({});
     const [deletingWorktree, setDeletingWorktree] = useState<Record<string, boolean>>({});
 
     const projectName = configEnvelope.config.project?.name || "Worktree Studio";
@@ -425,6 +428,32 @@ export function App() {
         }
     }
 
+    async function pullWorktree(worktree: WorktreeInfo) {
+        setPullingWorktree((current) => ({ ...current, [worktree.path]: true }));
+        try {
+            const payload = await api<{ pulled?: unknown; worktrees?: unknown[] }>("/api/worktrees/pull", {
+                method: "POST",
+                body: JSON.stringify({ worktree: worktree.path }),
+            });
+            const nextWorktrees = payload.worktrees ? normalizeWorktrees(payload.worktrees) : null;
+            const pulled = payload.pulled ? normalizeWorktrees([payload.pulled])[0] : null;
+            setWorktrees((current) =>
+                nextWorktrees ?? current.map((item) => (pulled && item.path === pulled.path ? pulled : item)),
+            );
+            setActiveWorktree((current) => {
+                if (!current) return current;
+                const next = nextWorktrees?.find((item) => item.path === current.path);
+                if (next) return next;
+                return pulled && current.path === pulled.path ? pulled : current;
+            });
+            toast.success(`Pulled worktree: ${pulled?.branch || worktree.branch || basename(worktree.path)}`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Could not pull worktree");
+        } finally {
+            setPullingWorktree((current) => ({ ...current, [worktree.path]: false }));
+        }
+    }
+
     async function deleteWorktree(worktree: WorktreeInfo) {
         setDeletingWorktree((current) => ({ ...current, [worktree.path]: true }));
         try {
@@ -580,12 +609,14 @@ export function App() {
                                     runs={worktreeRuns}
                                     activeRun={activeRun}
                                     isStoppingRun={Boolean(activeRun && stopping[activeRun.id])}
+                                    isPulling={Boolean(pullingWorktree[worktree.path])}
                                     isDeleting={Boolean(deletingWorktree[worktree.path])}
                                     onSelectAction={(actionId) =>
                                         setSelectedActionByWorktree((current) => ({ ...current, [worktree.path]: actionId }))
                                     }
                                     onRun={(action) => void runAction(worktree, action)}
                                     onStopRun={(run) => void stopRun(run)}
+                                    onPull={() => void pullWorktree(worktree)}
                                     onDelete={() => setConfirmDeleteWorktree(worktree)}
                                     onOpen={() => {
                                         setActiveWorktree(worktree);
@@ -883,10 +914,12 @@ function WorktreeCard({
     runs,
     activeRun,
     isStoppingRun,
+    isPulling,
     isDeleting,
     onSelectAction,
     onRun,
     onStopRun,
+    onPull,
     onDelete,
     onOpen,
     onOpenSettings,
@@ -898,17 +931,21 @@ function WorktreeCard({
     runs: RunInfo[];
     activeRun?: RunInfo;
     isStoppingRun: boolean;
+    isPulling: boolean;
     isDeleting: boolean;
     onSelectAction: (actionId: string) => void;
     onRun: (action: WorktreeAction) => void;
     onStopRun: (run: RunInfo) => void;
+    onPull: () => void;
     onDelete: () => void;
     onOpen: () => void;
     onOpenSettings: () => void;
 }) {
     const selectedAction = actions.find((action) => action.id === selectedActionId) || actions[0];
     const latestRun = runs[0];
+    const pullDisabled = isPulling || worktree.prunable || worktree.detached || worktree.bare || !worktree.branch;
     const deleteDisabled = worktree.removable === false || isDeleting;
+    const pullTitle = pullDisabled && !isPulling ? "Only branch worktrees can be pulled" : "Pull worktree";
     const deleteTitle =
         worktree.removable === false ? "This worktree cannot be removed" : "Remove worktree";
 
@@ -950,6 +987,19 @@ function WorktreeCard({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         <ActionStatusIcon run={latestRun} />
+                        <Button
+                            title={pullTitle}
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={pullDisabled}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onPull();
+                            }}
+                        >
+                            {isPulling ? <Loader2Icon /> : <DownloadIcon />}
+                            <span className="sr-only">Pull worktree</span>
+                        </Button>
                         <Button
                             title={deleteTitle}
                             variant="ghost"
@@ -1335,6 +1385,7 @@ function normalizeWorktrees(items: unknown[]): WorktreeInfo[] {
             behind: Number(source.behind || 0),
             prunable: Boolean(source.prunable),
             detached: Boolean(source.detached),
+            bare: Boolean(source.bare),
             locked: source.locked ? String(source.locked) : undefined,
             reason: source.reason ? String(source.reason) : undefined,
             status: String(source.status || (source.dirty ? "dirty" : "ready")),

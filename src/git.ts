@@ -15,6 +15,12 @@ export interface RemovedWorktreeInfo {
     };
 }
 
+export interface PulledWorktreeInfo {
+    worktree: WorktreeInfo;
+    stdout: string;
+    stderr: string;
+}
+
 interface RemoveWorktreePlan {
     savedCommit?: RemovedWorktreeInfo["savedCommit"];
     forceLevel: 0 | 1 | 2;
@@ -55,6 +61,22 @@ export async function removeWorktree(repoRoot: string, worktreePath: string): Pr
     const forceArgs = Array.from({ length: plan.forceLevel }, () => "--force");
     await execGit(["worktree", "remove", ...forceArgs, worktreePath], repoRoot);
     return plan.savedCommit ? { savedCommit: plan.savedCommit } : {};
+}
+
+export async function pullWorktree(repoRoot: string, worktreePath: string): Promise<PulledWorktreeInfo> {
+    const target = (await listWorktrees(repoRoot)).find((worktree) => worktree.path === worktreePath);
+    if (!target) throw new Error(`Worktree not found: ${worktreePath}`);
+    if (target.prunable) throw new Error(`Cannot pull prunable worktree: ${worktreePath}`);
+    if (target.bare) throw new Error(`Cannot pull bare worktree: ${worktreePath}`);
+    if (target.detached || !target.branch) throw new Error(`Cannot pull detached worktree: ${worktreePath}`);
+
+    const { stdout, stderr } = await execGit(["pull", "--ff-only"], worktreePath);
+    const updated = (await listWorktrees(repoRoot)).find((worktree) => worktree.path === worktreePath);
+    return {
+        worktree: updated ?? (await enrichWorktreeStatus(target)),
+        stdout,
+        stderr,
+    };
 }
 
 export function parseWorktreePorcelain(output: string): WorktreeInfo[] {

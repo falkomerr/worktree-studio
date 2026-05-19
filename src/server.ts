@@ -5,7 +5,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjectConfig, saveProjectConfig } from "./config.js";
 import { configuredAndDiscoveredCommands, discoverCommands } from "./discovery.js";
-import { listConfiguredWorktrees, listWorktrees, removeWorktree, selectWorktree } from "./git.js";
+import { listConfiguredWorktrees, listWorktrees, pullWorktree, removeWorktree, selectWorktree } from "./git.js";
 import { ProcessRunner } from "./runner.js";
 import type { RunInfo, WorktreeStudioConfig } from "./types.js";
 
@@ -79,6 +79,17 @@ export async function startGuiServer(repoRoot: string, host: string, port: numbe
                 }
                 if (url.pathname === "/api/worktrees" && request.method === "GET") {
                     return sendJson(response, 200, { worktrees: await listGuiWorktrees(repoRoot, loadedConfig.config) });
+                }
+                if (url.pathname === "/api/worktrees/pull" && request.method === "POST") {
+                    const body = await readJsonBody(request);
+                    const worktree = await resolveWorktree(repoRoot, String(body.worktree ?? "."));
+                    const pulled = await pullWorktree(repoRoot, worktree.path);
+                    return sendJson(response, 200, {
+                        pulled: pulled.worktree,
+                        stdout: pulled.stdout,
+                        stderr: pulled.stderr,
+                        worktrees: await listGuiWorktrees(repoRoot, loadedConfig.config),
+                    });
                 }
                 if (url.pathname === "/api/worktrees" && request.method === "DELETE") {
                     const body = await readJsonBody(request);
