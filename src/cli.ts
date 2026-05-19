@@ -5,7 +5,7 @@ import { stdin as input, stdout as output } from "node:process";
 import readline from "node:readline/promises";
 import { ConfigError, configPath, defaultConfig, loadProjectConfig, saveProjectConfig } from "./config.js";
 import { configuredAndDiscoveredCommands, discoverCommands, discoveredToConfig, findRepoRoot } from "./discovery.js";
-import { listWorktrees, selectWorktree } from "./git.js";
+import { listConfiguredWorktrees, listWorktrees, selectWorktree } from "./git.js";
 import { ProcessRunner } from "./runner.js";
 import { startGuiServer } from "./server.js";
 import type { RunInfo, WorktreeStudioConfig } from "./types.js";
@@ -81,7 +81,8 @@ async function init(rest: string[]): Promise<void> {
 
 async function printWorktrees(rest: string[]): Promise<void> {
     const repoRoot = resolveRepo(rest[0]);
-    const worktrees = await listWorktrees(repoRoot);
+    const { config } = await loadProjectConfig(repoRoot);
+    const worktrees = await listConfiguredWorktrees(repoRoot, config);
     printTable(
         ["branch", "state", "ahead", "behind", "path"],
         worktrees.map((worktree) => [
@@ -191,7 +192,7 @@ async function printAgentBootstrap(rest: string[]): Promise<void> {
 async function doctor(rest: string[]): Promise<void> {
     const repoRoot = resolveRepo(rest[0]);
     const loaded = await loadProjectConfig(repoRoot);
-    const [worktrees, discovered] = await Promise.all([listWorktrees(repoRoot), discoverCommands(repoRoot)]);
+    const [worktrees, discovered] = await Promise.all([listConfiguredWorktrees(repoRoot, loaded.config), discoverCommands(repoRoot)]);
     console.log(`repo: ${repoRoot}`);
     console.log(`config: ${loaded.exists ? loaded.path : "defaults only"}`);
     console.log(`configured commands: ${loaded.config.commands.length}`);

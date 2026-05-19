@@ -28,7 +28,12 @@ Worktree Studio reads `worktree-studio.json` from the git repository root.
             "steps": [{ "commandId": "docs.build" }],
             "stopOnFailure": true
         }
-    ]
+    ],
+    "worktrees": {
+        "discover": true,
+        "include": ["."],
+        "exclude": []
+    }
 }
 ```
 
@@ -46,3 +51,11 @@ Important command fields:
 | `mode` | `one-shot` or `long-running`. |
 | `visible` | Hide from quick launch when `false`. |
 | `confirm` | Ask before running when `true`. |
+
+Worktree filtering:
+
+| Key | Description |
+| --- | --- |
+| `worktrees.include` | Visible worktrees. Use `"."` for the repository root, or match by branch, path, basename, `*`, and `?` wildcards. |
+| `worktrees.exclude` | Worktrees hidden after includes are applied. Uses the same selector syntax as `include`. |
+| `worktrees.discover` | Reserved for discovery behavior; currently worktrees are read from `git worktree list`. |

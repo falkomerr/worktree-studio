@@ -5,9 +5,9 @@ import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjectConfig, saveProjectConfig } from "./config.js";
 import { configuredAndDiscoveredCommands, discoverCommands } from "./discovery.js";
-import { listWorktrees, removeWorktree, selectWorktree } from "./git.js";
+import { listConfiguredWorktrees, listWorktrees, removeWorktree, selectWorktree } from "./git.js";
 import { ProcessRunner } from "./runner.js";
-import type { RunInfo } from "./types.js";
+import type { RunInfo, WorktreeStudioConfig } from "./types.js";
 
 const MAX_JSON_BODY_BYTES = 1024 * 1024;
 
@@ -78,7 +78,7 @@ export async function startGuiServer(repoRoot: string, host: string, port: numbe
                     });
                 }
                 if (url.pathname === "/api/worktrees" && request.method === "GET") {
-                    return sendJson(response, 200, { worktrees: await listGuiWorktrees(repoRoot) });
+                    return sendJson(response, 200, { worktrees: await listGuiWorktrees(repoRoot, loadedConfig.config) });
                 }
                 if (url.pathname === "/api/worktrees" && request.method === "DELETE") {
                     const body = await readJsonBody(request);
@@ -90,7 +90,7 @@ export async function startGuiServer(repoRoot: string, host: string, port: numbe
                     return sendJson(response, 200, {
                         removed: worktree,
                         savedCommit: removal.savedCommit,
-                        worktrees: await listGuiWorktrees(repoRoot),
+                        worktrees: await listGuiWorktrees(repoRoot, loadedConfig.config),
                     });
                 }
                 if (url.pathname === "/api/runs" && request.method === "GET") {
@@ -166,8 +166,8 @@ async function findRepoWorktree(worktrees: Awaited<ReturnType<typeof listWorktre
     return undefined;
 }
 
-async function listGuiWorktrees(repoRoot: string) {
-    const worktrees = await listWorktrees(repoRoot);
+async function listGuiWorktrees(repoRoot: string, config: WorktreeStudioConfig) {
+    const worktrees = await listConfiguredWorktrees(repoRoot, config);
     const canonicalRepoRoot = await canonicalPath(repoRoot);
     return Promise.all(
         worktrees.map(async (worktree) => ({

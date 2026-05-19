@@ -10,10 +10,11 @@ The CLI prints a localhost URL with a session token. The GUI and API exist only 
 
 Main screen:
 
-- Worktrees: responsive grid of repository worktrees, four columns on desktop.
+- Worktrees: responsive grid of worktrees allowed by `worktrees.include` and `worktrees.exclude`.
 - Actions: each worktree card has an action selector and a `Run` button.
 - Action status: running and failed actions are shown directly on the worktree card with compact icons.
 - Details: click a worktree card to open its runs and logs.
 - Settings: configure actions from the same page; actions are saved to `commands[]` in `worktree-studio.json`.
+- Remove: delete a non-root worktree from the card menu. Dirty branch worktrees are committed before removal.
 
 The API binds to `127.0.0.1` by default and requires the printed token for `/api/*`.

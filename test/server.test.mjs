@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -56,6 +56,40 @@ test("launches configured commands through runs endpoint", async () => {
     }
 });
 
+test("filters GUI worktrees with project include config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "feature");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "test\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "-b", "feature/hidden", worktreeDir], { cwd: dir });
+    await saveProjectConfig(dir, {
+        version: 1,
+        commands: [],
+        pipelines: [],
+        worktrees: { include: ["."], exclude: [] },
+    });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const canonicalDir = await realpath(dir);
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const response = await fetch(apiUrl);
+        const payload = await response.json();
+        assert.deepEqual(
+            payload.worktrees.map((worktree) => worktree.path),
+            [canonicalDir],
+        );
+    } finally {
+        await server.close();
+    }
+});
+
 test("removes a worktree through the API", async () => {
     const root = await mkdtemp(join(tmpdir(), "wts-server-"));
     const dir = join(root, "repo");
@@ -68,7 +102,12 @@ test("removes a worktree through the API", async () => {
     await execFileAsync("git", ["add", "README.md"], { cwd: dir });
     await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
     await execFileAsync("git", ["worktree", "add", "-b", "feature/delete-me", worktreeDir], { cwd: dir });
-    await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });
+    await saveProjectConfig(dir, {
+        version: 1,
+        commands: [],
+        pipelines: [],
+        worktrees: { include: [".", "feature/delete-me"], exclude: [] },
+    });
 
     const server = await startGuiServer(dir, "127.0.0.1", 0);
     try {

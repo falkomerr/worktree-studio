@@ -10,6 +10,7 @@ V1 supports:
 - running sequential pipelines;
 - streaming live logs through a local Web UI;
 - editing `worktree-studio.json` from the browser;
+- removing non-root worktrees from the browser;
 - exposing agent bootstrap instructions from config.
 
-V1 does not create, delete, prune, commit, or push worktrees.
+V1 does not create, prune, or push worktrees.

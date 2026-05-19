@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
+import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { WorktreeInfo } from "./types.js";
+import type { WorktreeInfo, WorktreeStudioConfig } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 const SAVE_BEFORE_REMOVE_MESSAGE = "Save worktree changes before removal";
@@ -18,6 +19,29 @@ export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
     const { stdout } = await execGit(["worktree", "list", "--porcelain"], repoRoot);
     const worktrees = parseWorktreePorcelain(stdout);
     return Promise.all(worktrees.map((worktree) => enrichWorktreeStatus(worktree)));
+}
+
+export async function listConfiguredWorktrees(
+    repoRoot: string,
+    config: WorktreeStudioConfig,
+): Promise<WorktreeInfo[]> {
+    const worktrees = await listWorktrees(repoRoot);
+    return filterWorktrees(worktrees, repoRoot, config);
+}
+
+export async function filterWorktrees(
+    worktrees: WorktreeInfo[],
+    repoRoot: string,
+    config: WorktreeStudioConfig,
+): Promise<WorktreeInfo[]> {
+    const include = config.worktrees?.include?.filter(Boolean);
+    const exclude = config.worktrees?.exclude?.filter(Boolean) ?? [];
+    const selected = include?.length ? await matchingWorktrees(worktrees, repoRoot, include) : worktrees;
+
+    if (!exclude.length) return selected;
+
+    const excluded = new Set((await matchingWorktrees(worktrees, repoRoot, exclude)).map((worktree) => worktree.path));
+    return selected.filter((worktree) => !excluded.has(worktree.path));
 }
 
 export async function removeWorktree(repoRoot: string, worktreePath: string): Promise<RemovedWorktreeInfo> {
@@ -146,4 +170,66 @@ export function selectWorktree(worktrees: WorktreeInfo[], selector: string): Wor
             basename(worktree.path) === selector
         );
     });
+}
+
+async function matchingWorktrees(
+    worktrees: WorktreeInfo[],
+    repoRoot: string,
+    selectors: string[],
+): Promise<WorktreeInfo[]> {
+    const matches: WorktreeInfo[] = [];
+    for (const worktree of worktrees) {
+        for (const selector of selectors) {
+            if (await matchesWorktree(worktree, repoRoot, selector)) {
+                matches.push(worktree);
+                break;
+            }
+        }
+    }
+    return matches;
+}
+
+async function matchesWorktree(worktree: WorktreeInfo, repoRoot: string, selector: string): Promise<boolean> {
+    const canonicalWorktree = await canonicalPath(worktree.path);
+    if (selector === ".") return canonicalWorktree === (await canonicalPath(repoRoot));
+
+    const selectorPath = resolve(repoRoot, selector);
+    const values = [
+        worktree.branch,
+        worktree.path,
+        canonicalWorktree,
+        basename(worktree.path),
+        resolve(worktree.path),
+        selectorPath === selector ? undefined : selectorPath,
+    ].filter((value): value is string => Boolean(value));
+
+    if (values.includes(selector)) return true;
+
+    if (!isWildcard(selector)) {
+        return canonicalWorktree === (await canonicalPath(selectorPath));
+    }
+
+    const wildcard = wildcardRegExp(selector);
+    return values.some((value) => wildcard.test(value));
+}
+
+async function canonicalPath(path: string): Promise<string> {
+    try {
+        return await realpath(path);
+    } catch {
+        return resolve(path);
+    }
+}
+
+function isWildcard(value: string): boolean {
+    return /[*?]/.test(value);
+}
+
+function wildcardRegExp(value: string): RegExp {
+    return new RegExp(
+        `^${value
+            .replace(/[|\\{}()[\]^$+*?.]/g, "\\$&")
+            .replace(/\\\*/g, ".*")
+            .replace(/\\\?/g, ".")}$`,
+    );
 }
