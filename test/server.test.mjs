@@ -99,6 +99,56 @@ test("removes a worktree through the API", async () => {
     }
 });
 
+test("commits dirty worktree changes before removal", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "dirty-feature");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "before\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "-b", "feature/dirty-delete", worktreeDir], { cwd: dir });
+    await writeFile(join(worktreeDir, "README.md"), "after\n");
+    await writeFile(join(worktreeDir, "note.txt"), "untracked\n");
+    await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const response = await fetch(apiUrl, {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ worktree: "feature/dirty-delete" }),
+        });
+        const text = await response.text();
+        assert.equal(response.status, 200, text);
+        const payload = JSON.parse(text);
+        assert.match(payload.savedCommit?.message, /Save worktree changes before removal/);
+        await assert.rejects(stat(worktreeDir), { code: "ENOENT" });
+
+        const { stdout: message } = await execFileAsync("git", ["log", "-1", "--format=%s", "feature/dirty-delete"], {
+            cwd: dir,
+            encoding: "utf8",
+        });
+        const { stdout: readme } = await execFileAsync("git", ["show", "feature/dirty-delete:README.md"], {
+            cwd: dir,
+            encoding: "utf8",
+        });
+        const { stdout: note } = await execFileAsync("git", ["show", "feature/dirty-delete:note.txt"], {
+            cwd: dir,
+            encoding: "utf8",
+        });
+        assert.match(message, /Save worktree changes before removal/);
+        assert.equal(readme, "after\n");
+        assert.equal(note, "untracked\n");
+    } finally {
+        await server.close();
+    }
+});
+
 test("rejects oversized JSON bodies", async () => {
     const dir = await mkdtemp(join(tmpdir(), "wts-server-"));
     await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });

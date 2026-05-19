@@ -86,8 +86,12 @@ export async function startGuiServer(repoRoot: string, host: string, port: numbe
                     if ((await canonicalPath(worktree.path)) === (await canonicalPath(repoRoot))) {
                         throw new HttpError(400, "Cannot remove the repository root worktree");
                     }
-                    await removeWorktree(repoRoot, worktree.path);
-                    return sendJson(response, 200, { removed: worktree, worktrees: await listGuiWorktrees(repoRoot) });
+                    const removal = await removeWorktree(repoRoot, worktree.path);
+                    return sendJson(response, 200, {
+                        removed: worktree,
+                        savedCommit: removal.savedCommit,
+                        worktrees: await listGuiWorktrees(repoRoot),
+                    });
                 }
                 if (url.pathname === "/api/runs" && request.method === "GET") {
                     return sendJson(response, 200, { runs: runner.listRuns() });

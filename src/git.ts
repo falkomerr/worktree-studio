@@ -5,6 +5,14 @@ import { promisify } from "node:util";
 import type { WorktreeInfo } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+const SAVE_BEFORE_REMOVE_MESSAGE = "Save worktree changes before removal";
+
+export interface RemovedWorktreeInfo {
+    savedCommit?: {
+        hash: string;
+        message: string;
+    };
+}
 
 export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
     const { stdout } = await execGit(["worktree", "list", "--porcelain"], repoRoot);
@@ -12,8 +20,10 @@ export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
     return Promise.all(worktrees.map((worktree) => enrichWorktreeStatus(worktree)));
 }
 
-export async function removeWorktree(repoRoot: string, worktreePath: string): Promise<void> {
+export async function removeWorktree(repoRoot: string, worktreePath: string): Promise<RemovedWorktreeInfo> {
+    const savedCommit = await commitDirtyWorktree(worktreePath);
     await execGit(["worktree", "remove", worktreePath], repoRoot);
+    return savedCommit ? { savedCommit } : {};
 }
 
 export function parseWorktreePorcelain(output: string): WorktreeInfo[] {
@@ -77,6 +87,31 @@ export async function enrichWorktreeStatus(worktree: WorktreeInfo): Promise<Work
             reason: error instanceof Error ? error.message : "Could not read status",
         };
     }
+}
+
+async function commitDirtyWorktree(worktreePath: string): Promise<RemovedWorktreeInfo["savedCommit"]> {
+    const { stdout: status } = await execGit(["status", "--porcelain"], worktreePath);
+    if (!status.trim()) return undefined;
+
+    const { stdout: branch } = await execGit(["branch", "--show-current"], worktreePath);
+    if (!branch.trim()) {
+        throw new Error("Cannot remove a dirty detached worktree without a branch to save changes");
+    }
+
+    await execGit(["add", "-A"], worktreePath);
+    try {
+        await execGit(["diff", "--cached", "--quiet"], worktreePath);
+        return undefined;
+    } catch (error) {
+        if ((error as { code?: number }).code !== 1) throw error;
+    }
+
+    await execGit(["commit", "--no-verify", "-m", SAVE_BEFORE_REMOVE_MESSAGE], worktreePath);
+    const { stdout: hash } = await execGit(["rev-parse", "HEAD"], worktreePath);
+    return {
+        hash: hash.trim(),
+        message: SAVE_BEFORE_REMOVE_MESSAGE,
+    };
 }
 
 async function execGit(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
