@@ -193,74 +193,6 @@ const fallbackConfig: StudioConfig = {
     ],
 };
 
-const fallbackWorktrees: WorktreeInfo[] = [
-    {
-        path: "/workspace/main",
-        branch: "main",
-        dirty: false,
-        ahead: 0,
-        behind: 0,
-        status: "ready",
-        lastRun: "build succeeded",
-    },
-    {
-        path: "/workspace/feature-actions",
-        branch: "feature/actions",
-        dirty: true,
-        ahead: 2,
-        behind: 0,
-        status: "dirty",
-        lastRun: "test running",
-    },
-    {
-        path: "/workspace/release",
-        branch: "release/next",
-        dirty: false,
-        ahead: 1,
-        behind: 3,
-        status: "failed",
-        lastRun: "lint failed",
-    },
-];
-
-const fallbackRuns: RunInfo[] = [
-    {
-        id: "run-1024",
-        commandId: "test",
-        commandLabel: "Test",
-        worktreePath: "/workspace/feature-actions",
-        status: "running",
-        startedAt: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-        logFile: "logs/run-1024.log",
-    },
-    {
-        id: "run-1023",
-        commandId: "build",
-        commandLabel: "Build",
-        worktreePath: "/workspace/main",
-        status: "succeeded",
-        startedAt: new Date(Date.now() - 1000 * 60 * 19).toISOString(),
-        endedAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-        logFile: "logs/run-1023.log",
-    },
-    {
-        id: "run-1022",
-        commandId: "lint.types",
-        commandLabel: "Type lint",
-        worktreePath: "/workspace/release",
-        status: "failed",
-        startedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
-        endedAt: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
-        exitCode: 2,
-        logFile: "logs/run-1022.log",
-    },
-];
-
-const fallbackLogs: RunLogEntry[] = [
-    { time: new Date().toISOString(), stream: "system", text: "$ pnpm run test\n" },
-    { time: new Date().toISOString(), stream: "stdout", text: "waiting for backend events...\n" },
-];
-
 const commandTypes: CommandType[] = ["dev", "build", "preview", "test", "lint", "pipeline", "custom"];
 const commandModes: CommandMode[] = ["one-shot", "long-running"];
 
@@ -275,9 +207,9 @@ export function App() {
     const [configEnvelope, setConfigEnvelope] = useState<ConfigEnvelope>({ config: fallbackConfig, exists: false });
     const [configuredActions, setConfiguredActions] = useState<WorktreeAction[]>(normalizeActions(fallbackConfig.commands));
     const [discoveredActions, setDiscoveredActions] = useState<WorktreeAction[]>([]);
-    const [worktrees, setWorktrees] = useState<WorktreeInfo[]>(fallbackWorktrees);
-    const [runs, setRuns] = useState<RunInfo[]>(fallbackRuns);
-    const [logsByRun, setLogsByRun] = useState<Record<string, RunLogEntry[]>>({ "run-1024": fallbackLogs });
+    const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([]);
+    const [runs, setRuns] = useState<RunInfo[]>([]);
+    const [logsByRun, setLogsByRun] = useState<Record<string, RunLogEntry[]>>({});
     const [connection, setConnection] = useState<ConnectionState>("loading");
     const [events, setEvents] = useState<EventState>("connecting");
     const [loading, setLoading] = useState(true);
@@ -364,7 +296,7 @@ export function App() {
             setWorktrees(nextWorktrees);
             online = true;
         } catch {
-            setWorktrees(fallbackWorktrees);
+            setWorktrees([]);
         }
 
         try {
@@ -373,7 +305,7 @@ export function App() {
             setRuns(nextRuns);
             online = true;
         } catch {
-            setRuns(fallbackRuns);
+            setRuns([]);
         }
 
         setConnection(online ? "connected" : "offline");
