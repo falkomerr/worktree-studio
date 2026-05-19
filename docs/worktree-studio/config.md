@@ -56,6 +56,6 @@ Worktree filtering:
 
 | Key | Description |
 | --- | --- |
-| `worktrees.include` | Visible worktrees. Use `"."` for the repository root, or match by branch, path, basename, `*`, and `?` wildcards. |
+| `worktrees.include` | Visible worktrees. Use `"."` or `"*"` for all worktrees in the current repository, or match by branch, exact path, basename, and `*`/`?` wildcards. |
 | `worktrees.exclude` | Worktrees hidden after includes are applied. Uses the same selector syntax as `include`. |
 | `worktrees.discover` | Reserved for discovery behavior; currently worktrees are read from `git worktree list`. |

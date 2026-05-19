@@ -191,7 +191,7 @@ async function matchingWorktrees(
 
 async function matchesWorktree(worktree: WorktreeInfo, repoRoot: string, selector: string): Promise<boolean> {
     const canonicalWorktree = await canonicalPath(worktree.path);
-    if (selector === ".") return canonicalWorktree === (await canonicalPath(repoRoot));
+    if (selector === "." || selector === "./") return true;
 
     const selectorPath = resolve(repoRoot, selector);
     const values = [
