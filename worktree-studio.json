@@ -1,0 +1,99 @@
+{
+    "$schema": "https://worktree-studio.local/schema/v1.json",
+    "version": 1,
+    "project": {
+        "name": "worktree-studio",
+        "rootStrategy": "git"
+    },
+    "commands": [
+        {
+            "id": "docs.dev",
+            "label": "Docs dev",
+            "type": "dev",
+            "kind": "package-script",
+            "packageScript": "docs:dev",
+            "cwd": ".",
+            "mode": "long-running",
+            "visible": true
+        },
+        {
+            "id": "docs.build",
+            "label": "Docs build",
+            "type": "build",
+            "kind": "package-script",
+            "packageScript": "docs:build",
+            "cwd": ".",
+            "mode": "one-shot",
+            "visible": true
+        },
+        {
+            "id": "studio.build",
+            "label": "Build CLI",
+            "type": "build",
+            "kind": "package-script",
+            "packageScript": "build",
+            "cwd": ".",
+            "mode": "one-shot",
+            "visible": true
+        },
+        {
+            "id": "studio.test",
+            "label": "Test CLI",
+            "type": "test",
+            "kind": "package-script",
+            "packageScript": "test",
+            "cwd": ".",
+            "mode": "one-shot",
+            "visible": true
+        }
+    ],
+    "pipelines": [
+        {
+            "id": "verify",
+            "label": "Verify Worktree Studio",
+            "steps": [
+                {
+                    "commandId": "studio.test"
+                },
+                {
+                    "commandId": "docs.build"
+                }
+            ],
+            "stopOnFailure": true,
+            "concurrency": 1
+        }
+    ],
+    "agentBootstrap": {
+        "sections": [
+            {
+                "id": "self-configure",
+                "title": "Agent self-configure",
+                "description": "Initialize and validate Worktree Studio for this repository.",
+                "commands": [
+                    "node dist/cli.js doctor",
+                    "test -f worktree-studio.json || node dist/cli.js init .",
+                    "node dist/cli.js config validate",
+                    "node dist/cli.js commands",
+                    "node dist/cli.js list"
+                ]
+            },
+            {
+                "id": "daily-bootstrap",
+                "title": "Daily bootstrap",
+                "description": "Fast orientation commands for humans and agents after config exists.",
+                "commands": [
+                    "git status --short --branch",
+                    "pnpm install",
+                    "pnpm run build",
+                    "pnpm run test",
+                    "pnpm run docs:build"
+                ]
+            }
+        ]
+    },
+    "security": {
+        "bindHost": "127.0.0.1",
+        "allowArbitraryShell": false,
+        "redactEnv": ["*_TOKEN", "*PASSWORD*", "*SECRET*", "*COOKIE*"]
+    }
+}

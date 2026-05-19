@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 360" role="img" aria-labelledby="title desc">
+  <title id="title">Worktree Studio rail map</title>
+  <desc id="desc">A stylized command center map connecting worktrees, command runs, logs, and agents.</desc>
+  <rect width="520" height="360" rx="28" fill="#111827"/>
+  <path d="M54 68h412M54 180h412M54 292h412" stroke="#334155" stroke-width="2"/>
+  <path d="M112 68c48 0 48 112 96 112h104c48 0 48 112 96 112" fill="none" stroke="#2dd4bf" stroke-width="7" stroke-linecap="round"/>
+  <path d="M112 292c52 0 52-112 104-112h88c52 0 52-112 104-112" fill="none" stroke="#60a5fa" stroke-width="7" stroke-linecap="round"/>
+  <path d="M110 180h300" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" stroke-dasharray="20 18"/>
+  <g fill="#f8fafc" stroke="#0f172a" stroke-width="5">
+    <circle cx="112" cy="68" r="19"/>
+    <circle cx="208" cy="180" r="19"/>
+    <circle cx="312" cy="180" r="19"/>
+    <circle cx="408" cy="292" r="19"/>
+    <circle cx="112" cy="292" r="19"/>
+    <circle cx="216" cy="180" r="19"/>
+    <circle cx="304" cy="180" r="19"/>
+    <circle cx="408" cy="68" r="19"/>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="17" font-weight="700">
+    <text x="82" y="124" fill="#2dd4bf">dev:web</text>
+    <text x="214" y="154" fill="#e5e7eb">verify</text>
+    <text x="338" y="236" fill="#60a5fa">preview</text>
+    <text x="72" y="250" fill="#f59e0b">agent bootstrap</text>
+  </g>
+  <rect x="54" y="28" width="186" height="30" rx="6" fill="#1f2937"/>
+  <circle cx="72" cy="43" r="5" fill="#ef4444"/>
+  <circle cx="90" cy="43" r="5" fill="#f59e0b"/>
+  <circle cx="108" cy="43" r="5" fill="#22c55e"/>
+  <text x="130" y="49" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="13">wts gui</text>
+</svg>

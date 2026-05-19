@@ -1,0 +1,54 @@
+{
+    "name": "worktree-studio",
+    "version": "0.1.0",
+    "description": "Project-agnostic CLI and local web UI for running commands across git worktrees.",
+    "type": "module",
+    "license": "MIT",
+    "author": "falkomerr",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/falkomerr/worktree-studio.git"
+    },
+    "bugs": {
+        "url": "https://github.com/falkomerr/worktree-studio/issues"
+    },
+    "homepage": "https://github.com/falkomerr/worktree-studio#readme",
+    "bin": {
+        "wts": "./dist/cli.js",
+        "worktree-studio": "./dist/cli.js"
+    },
+    "files": [
+        "dist",
+        "docs/**/*.md",
+        "docs/public",
+        "docs/.vitepress/config.ts",
+        "docs/.vitepress/theme",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json && node scripts/copy-web.mjs",
+        "lint:types": "tsc --noEmit -p tsconfig.json",
+        "test": "pnpm run build && node --test test/*.test.mjs",
+        "clean": "rimraf dist docs/.vitepress/dist",
+        "docs:dev": "vitepress dev docs",
+        "docs:build": "vitepress build docs",
+        "docs:preview": "vitepress preview docs"
+    },
+    "devDependencies": {
+        "@types/node": "22.15.3",
+        "rimraf": "^6.0.1",
+        "typescript": "5.9.3",
+        "vitepress": "^1.6.4"
+    },
+    "engines": {
+        "node": ">=22.18"
+    },
+    "packageManager": "pnpm@10.32.1",
+    "pnpm": {
+        "overrides": {
+            "vite": "6.4.2",
+            "esbuild": "0.25.12"
+        }
+    }
+}
