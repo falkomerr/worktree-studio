@@ -223,6 +223,132 @@ test("commits dirty worktree changes before removal", async () => {
     }
 });
 
+test("force removes dirty detached worktrees through the API", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "dirty-detached");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "before\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "--detach", worktreeDir], { cwd: dir });
+    await writeFile(join(worktreeDir, "README.md"), "after\n");
+    await writeFile(join(worktreeDir, "note.txt"), "untracked\n");
+    await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const canonicalWorktreeDir = await realpath(worktreeDir);
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const listed = await fetch(apiUrl);
+        const listedPayload = await listed.json();
+        assert.equal(
+            listedPayload.worktrees.find((worktree) => worktree.path === canonicalWorktreeDir)?.removable,
+            true,
+        );
+
+        const response = await fetch(apiUrl, {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ worktree: canonicalWorktreeDir }),
+        });
+        const text = await response.text();
+        assert.equal(response.status, 200, text);
+        const payload = JSON.parse(text);
+        assert.equal(payload.savedCommit, undefined);
+        assert.equal(payload.removed?.path, canonicalWorktreeDir);
+        await assert.rejects(stat(worktreeDir), { code: "ENOENT" });
+    } finally {
+        await server.close();
+    }
+});
+
+test("marks locked worktrees removable and force removes them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "locked");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "before\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "--detach", worktreeDir], { cwd: dir });
+    await execFileAsync("git", ["worktree", "lock", worktreeDir], { cwd: dir });
+    await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const canonicalWorktreeDir = await realpath(worktreeDir);
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const listed = await fetch(apiUrl);
+        const listedPayload = await listed.json();
+        assert.equal(
+            listedPayload.worktrees.find((worktree) => worktree.path === canonicalWorktreeDir)?.removable,
+            true,
+        );
+
+        const response = await fetch(apiUrl, {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ worktree: canonicalWorktreeDir }),
+        });
+        const text = await response.text();
+        assert.equal(response.status, 200, text);
+        await assert.rejects(stat(worktreeDir), { code: "ENOENT" });
+    } finally {
+        await server.close();
+    }
+});
+
+test("marks prunable worktrees removable and removes their metadata", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "missing");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "before\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "--detach", worktreeDir], { cwd: dir });
+    const canonicalWorktreeDir = await realpath(worktreeDir);
+    await execFileAsync("rm", ["-rf", worktreeDir]);
+    await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });
+
+    const server = await startGuiServer(dir, "127.0.0.1", 0);
+    try {
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const listed = await fetch(apiUrl);
+        const listedPayload = await listed.json();
+        assert.equal(
+            listedPayload.worktrees.find((worktree) => worktree.path === canonicalWorktreeDir)?.removable,
+            true,
+        );
+
+        const response = await fetch(apiUrl, {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ worktree: canonicalWorktreeDir }),
+        });
+        const text = await response.text();
+        assert.equal(response.status, 200, text);
+
+        const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+            cwd: dir,
+            encoding: "utf8",
+        });
+        assert.equal(stdout.includes(canonicalWorktreeDir), false);
+    } finally {
+        await server.close();
+    }
+});
+
 test("rejects oversized JSON bodies", async () => {
     const dir = await mkdtemp(join(tmpdir(), "wts-server-"));
     await saveProjectConfig(dir, { version: 1, commands: [], pipelines: [] });

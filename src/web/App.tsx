@@ -420,6 +420,14 @@ export function App() {
     async function deleteWorktree(worktree: WorktreeInfo) {
         setDeletingWorktree((current) => ({ ...current, [worktree.path]: true }));
         try {
+            const activeRuns = runs.filter((run) => run.worktreePath === worktree.path && canStopRun(run));
+            for (const run of activeRuns) {
+                const response = await api<{ stopped?: boolean }>(`/api/runs/${encodeURIComponent(run.id)}`, {
+                    method: "DELETE",
+                });
+                if (response.stopped) setRuns((current) => markRunStatus(current, run.id, "cancelled"));
+            }
+
             const payload = await api<{ removed?: WorktreeInfo; worktrees?: unknown[] }>("/api/worktrees", {
                 method: "DELETE",
                 body: JSON.stringify({ worktree: worktree.path }),
@@ -892,13 +900,9 @@ function WorktreeCard({
 }) {
     const selectedAction = actions.find((action) => action.id === selectedActionId) || actions[0];
     const latestRun = runs[0];
-    const deleteDisabled = worktree.removable === false || Boolean(activeRun) || isDeleting;
+    const deleteDisabled = worktree.removable === false || isDeleting;
     const deleteTitle =
-        worktree.removable === false
-            ? "This worktree cannot be removed"
-            : activeRun
-              ? "Stop the active run before removing"
-              : "Remove worktree";
+        worktree.removable === false ? "This worktree cannot be removed" : "Remove worktree";
 
     return (
         <Card

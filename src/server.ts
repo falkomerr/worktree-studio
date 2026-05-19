@@ -174,8 +174,6 @@ async function listGuiWorktrees(repoRoot: string, config: WorktreeStudioConfig) 
             ...worktree,
             removable:
                 !worktree.bare &&
-                !worktree.locked &&
-                !worktree.prunable &&
                 (await canonicalPath(worktree.path)) !== canonicalRepoRoot,
         })),
     );

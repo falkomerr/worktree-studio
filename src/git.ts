@@ -15,6 +15,11 @@ export interface RemovedWorktreeInfo {
     };
 }
 
+interface RemoveWorktreePlan {
+    savedCommit?: RemovedWorktreeInfo["savedCommit"];
+    forceLevel: 0 | 1 | 2;
+}
+
 export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
     const { stdout } = await execGit(["worktree", "list", "--porcelain"], repoRoot);
     const worktrees = parseWorktreePorcelain(stdout);
@@ -45,9 +50,11 @@ export async function filterWorktrees(
 }
 
 export async function removeWorktree(repoRoot: string, worktreePath: string): Promise<RemovedWorktreeInfo> {
-    const savedCommit = await commitDirtyWorktree(worktreePath);
-    await execGit(["worktree", "remove", worktreePath], repoRoot);
-    return savedCommit ? { savedCommit } : {};
+    const target = (await listWorktrees(repoRoot)).find((worktree) => worktree.path === worktreePath);
+    const plan = await planWorktreeRemoval(worktreePath, target);
+    const forceArgs = Array.from({ length: plan.forceLevel }, () => "--force");
+    await execGit(["worktree", "remove", ...forceArgs, worktreePath], repoRoot);
+    return plan.savedCommit ? { savedCommit: plan.savedCommit } : {};
 }
 
 export function parseWorktreePorcelain(output: string): WorktreeInfo[] {
@@ -113,19 +120,32 @@ export async function enrichWorktreeStatus(worktree: WorktreeInfo): Promise<Work
     }
 }
 
-async function commitDirtyWorktree(worktreePath: string): Promise<RemovedWorktreeInfo["savedCommit"]> {
+async function planWorktreeRemoval(worktreePath: string, worktree?: WorktreeInfo): Promise<RemoveWorktreePlan> {
+    const forceLevel = worktree?.locked ? 2 : worktree?.prunable ? 1 : 0;
+    if (worktree?.prunable) return { forceLevel };
+
+    const dirtyPlan = await commitDirtyWorktree(worktreePath);
+    return {
+        savedCommit: dirtyPlan.savedCommit,
+        forceLevel: Math.max(forceLevel, dirtyPlan.forceLevel) as 0 | 1 | 2,
+    };
+}
+
+async function commitDirtyWorktree(
+    worktreePath: string,
+): Promise<{ savedCommit?: RemovedWorktreeInfo["savedCommit"]; forceLevel: 0 | 1 }> {
     const { stdout: status } = await execGit(["status", "--porcelain"], worktreePath);
-    if (!status.trim()) return undefined;
+    if (!status.trim()) return { forceLevel: 0 };
 
     const { stdout: branch } = await execGit(["branch", "--show-current"], worktreePath);
     if (!branch.trim()) {
-        throw new Error("Cannot remove a dirty detached worktree without a branch to save changes");
+        return { forceLevel: 1 };
     }
 
     await execGit(["add", "-A"], worktreePath);
     try {
         await execGit(["diff", "--cached", "--quiet"], worktreePath);
-        return undefined;
+        return { forceLevel: 0 };
     } catch (error) {
         if ((error as { code?: number }).code !== 1) throw error;
     }
@@ -133,8 +153,11 @@ async function commitDirtyWorktree(worktreePath: string): Promise<RemovedWorktre
     await execGit(["commit", "--no-verify", "-m", SAVE_BEFORE_REMOVE_MESSAGE], worktreePath);
     const { stdout: hash } = await execGit(["rev-parse", "HEAD"], worktreePath);
     return {
-        hash: hash.trim(),
-        message: SAVE_BEFORE_REMOVE_MESSAGE,
+        savedCommit: {
+            hash: hash.trim(),
+            message: SAVE_BEFORE_REMOVE_MESSAGE,
+        },
+        forceLevel: 0,
     };
 }
 

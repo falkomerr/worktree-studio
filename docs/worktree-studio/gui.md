@@ -15,6 +15,7 @@ Main screen:
 - Action status: running and failed actions are shown directly on the worktree card with compact icons.
 - Details: click a worktree card to open its runs and logs.
 - Settings: configure actions from the same page; actions are saved to `commands[]` in `worktree-studio.json`.
-- Remove: delete a non-root worktree from the card menu. Dirty branch worktrees are committed before removal.
+- Remove: delete a non-root worktree from the card menu. Dirty branch worktrees are committed before removal;
+  dirty detached worktrees are removed with `git worktree remove --force`.
 
 The API binds to `127.0.0.1` by default and requires the printed token for `/api/*`.
