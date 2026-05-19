@@ -8,15 +8,32 @@ pnpm run build
 pnpm run test
 ```
 
-The package exposes two equivalent bins when installed or linked:
+## Global CLI
+
+Install the published CLI globally:
+
+```bash
+pnpm add --global worktree-studio
+wts --help
+```
+
+Or link this checkout as the global CLI while developing:
+
+```bash
+pnpm install
+pnpm run global:install
+wts --help
+```
+
+The package exposes two equivalent bins:
 
 - `wts`
 - `worktree-studio`
 
-During local development, run the built CLI directly:
+After installation, run Worktree Studio through the global utility:
 
 ```bash
-node dist/cli.js --help
+wts --help
 ```
 
 Start this documentation site:

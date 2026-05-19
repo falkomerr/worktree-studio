@@ -8,15 +8,15 @@ pnpm install
 pnpm run build
 pnpm run test
 pnpm run docs:build
-node dist/cli.js doctor
-node dist/cli.js list
-node dist/cli.js commands
+wts doctor
+wts list
+wts commands
 ```
 
 Read project bootstrap hints:
 
 ```bash
-node dist/cli.js agent-bootstrap
+wts agent-bootstrap
 ```
 
 Agents should use configured command ids instead of arbitrary shell commands where possible.

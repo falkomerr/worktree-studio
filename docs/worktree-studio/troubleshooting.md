@@ -3,7 +3,7 @@
 ## Config Does Not Load
 
 ```bash
-node dist/cli.js config validate
+wts config validate
 ```
 
 The validator reports duplicate command ids, missing executables, and pipelines that reference unknown commands.
@@ -11,7 +11,7 @@ The validator reports duplicate command ids, missing executables, and pipelines 
 ## Command Is Missing
 
 ```bash
-node dist/cli.js commands
+wts commands
 ```
 
 If a discovered script is useful, import it from the GUI Settings view or add it to `commands[]`.
@@ -21,9 +21,9 @@ If a discovered script is useful, import it from the GUI Settings view or add it
 Selectors can be a branch name, absolute path, directory basename, or `.` for the current checkout.
 
 ```bash
-node dist/cli.js list
+wts list
 ```
 
 ## GUI Returns Unauthorized
 
-Use the full URL printed by `node dist/cli.js gui`; it includes `?token=...`.
+Use the full URL printed by `wts gui`; it includes `?token=...`.

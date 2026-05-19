@@ -5,7 +5,7 @@ Bootstrap information is stored in `worktree-studio.json` under `agentBootstrap.
 Print it from the CLI:
 
 ```bash
-node dist/cli.js agent-bootstrap
+wts agent-bootstrap
 ```
 
 The same sections are shown in the Web UI Agents tab. They are intended for humans and coding agents that need a quick, project-specific startup checklist.

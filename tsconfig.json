@@ -11,7 +11,11 @@
         "skipLibCheck": true,
         "types": ["node"],
         "declaration": true,
-        "sourceMap": true
+        "sourceMap": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["src/*"]
+        }
     },
     "include": ["src/**/*.ts"]
 }

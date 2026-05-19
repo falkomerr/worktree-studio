@@ -1,7 +1,7 @@
 # CLI
 
 ```bash
-node dist/cli.js --help
+wts --help
 ```
 
 | Command | Purpose |
@@ -19,13 +19,13 @@ node dist/cli.js --help
 Examples:
 
 ```bash
-node dist/cli.js init .
-node dist/cli.js doctor
-node dist/cli.js list
-node dist/cli.js commands
-node dist/cli.js run . docs.build
-node dist/cli.js pipeline . verify
-node dist/cli.js gui --port 0
+wts init .
+wts doctor
+wts list
+wts commands
+wts run . docs.build
+wts pipeline . verify
+wts gui --port 0
 ```
 
 For autonomous setup, point agents at [Agent Self Configure](/agents/self-configure).

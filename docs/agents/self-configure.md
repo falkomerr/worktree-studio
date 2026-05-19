@@ -19,9 +19,9 @@ If `worktree-studio.json` already exists, do not overwrite it by default. Read i
 
 ## What Agents Should Configure
 
-1. Import discovered package scripts and Nx targets with `wts init .`.
-2. Keep high-signal commands visible: dev, build, preview, lint, test, docs.
-3. Hide noisy helper scripts by setting `"visible": false`.
+1. Import discovered package scripts and Nx targets with `wts init .`, then keep only the actions needed for normal agent work.
+2. Configure the minimal useful action set: dev servers, production builds, build preview commands, relevant test variants, and pipelines.
+3. Hide noisy helper scripts and unrelated package scripts by setting `"visible": false`.
 4. Add pipelines for common verification paths, for example `verify`, `verify:web`, or `verify:docs`.
 5. Add `agentBootstrap.sections[]` with copy-ready commands for future agents.
 6. Run `wts config validate` after every config edit.
