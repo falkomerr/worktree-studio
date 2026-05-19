@@ -12,6 +12,10 @@ export async function listWorktrees(repoRoot: string): Promise<WorktreeInfo[]> {
     return Promise.all(worktrees.map((worktree) => enrichWorktreeStatus(worktree)));
 }
 
+export async function removeWorktree(repoRoot: string, worktreePath: string): Promise<void> {
+    await execGit(["worktree", "remove", worktreePath], repoRoot);
+}
+
 export function parseWorktreePorcelain(output: string): WorktreeInfo[] {
     const records = output
         .split(/\n{2,}/)

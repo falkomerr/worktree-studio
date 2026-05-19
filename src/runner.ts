@@ -207,11 +207,12 @@ export class ProcessRunner extends EventEmitter {
 
     private async applyPort(command: WorktreeCommand, env: NodeJS.ProcessEnv, extraArgs: string[]): Promise<void> {
         if (!command.port) return;
+        const host = this.config.security?.bindHost ?? "127.0.0.1";
         if (typeof command.port === "number") {
-            env.PORT = String(command.port);
+            const port = await findFreePort(host, [command.port, Math.min(command.port + 100, 65535)]);
+            env.PORT = String(port);
             return;
         }
-        const host = this.config.security?.bindHost ?? "127.0.0.1";
         const port = await findFreePort(host, command.port.range ?? [5173, 5999]);
         if (command.port.env) env[command.port.env] = String(port);
         for (const arg of command.port.args ?? []) {

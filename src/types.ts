@@ -105,6 +105,7 @@ export interface WorktreeInfo {
     behind?: number;
     locked?: string;
     reason?: string;
+    removable?: boolean;
 }
 
 export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";

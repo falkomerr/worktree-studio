@@ -5,7 +5,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProjectConfig, saveProjectConfig } from "./config.js";
 import { configuredAndDiscoveredCommands, discoverCommands } from "./discovery.js";
-import { listWorktrees, selectWorktree } from "./git.js";
+import { listWorktrees, removeWorktree, selectWorktree } from "./git.js";
 import { ProcessRunner } from "./runner.js";
 import type { RunInfo } from "./types.js";
 
@@ -77,8 +77,17 @@ export async function startGuiServer(repoRoot: string, host: string, port: numbe
                         commands: configuredAndDiscoveredCommands(loadedConfig.config, discovered),
                     });
                 }
-                if (url.pathname === "/api/worktrees") {
-                    return sendJson(response, 200, { worktrees: await listWorktrees(repoRoot) });
+                if (url.pathname === "/api/worktrees" && request.method === "GET") {
+                    return sendJson(response, 200, { worktrees: await listGuiWorktrees(repoRoot) });
+                }
+                if (url.pathname === "/api/worktrees" && request.method === "DELETE") {
+                    const body = await readJsonBody(request);
+                    const worktree = await resolveWorktree(repoRoot, String(body.worktree ?? "."));
+                    if ((await canonicalPath(worktree.path)) === (await canonicalPath(repoRoot))) {
+                        throw new HttpError(400, "Cannot remove the repository root worktree");
+                    }
+                    await removeWorktree(repoRoot, worktree.path);
+                    return sendJson(response, 200, { removed: worktree, worktrees: await listGuiWorktrees(repoRoot) });
                 }
                 if (url.pathname === "/api/runs" && request.method === "GET") {
                     return sendJson(response, 200, { runs: runner.listRuns() });
@@ -151,6 +160,21 @@ async function findRepoWorktree(worktrees: Awaited<ReturnType<typeof listWorktre
         if ((await canonicalPath(worktree.path)) === canonicalRepoRoot) return worktree;
     }
     return undefined;
+}
+
+async function listGuiWorktrees(repoRoot: string) {
+    const worktrees = await listWorktrees(repoRoot);
+    const canonicalRepoRoot = await canonicalPath(repoRoot);
+    return Promise.all(
+        worktrees.map(async (worktree) => ({
+            ...worktree,
+            removable:
+                !worktree.bare &&
+                !worktree.locked &&
+                !worktree.prunable &&
+                (await canonicalPath(worktree.path)) !== canonicalRepoRoot,
+        })),
+    );
 }
 
 async function canonicalPath(path: string): Promise<string> {

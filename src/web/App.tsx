@@ -108,6 +108,7 @@ interface WorktreeInfo {
     locked?: string;
     reason?: string;
     lastRun?: string;
+    removable?: boolean;
 }
 
 interface RunInfo {
@@ -291,6 +292,8 @@ export function App() {
     const [running, setRunning] = useState<Record<string, boolean>>({});
     const [stopping, setStopping] = useState<Record<string, boolean>>({});
     const [confirmRun, setConfirmRun] = useState<ConfirmRun | null>(null);
+    const [confirmDeleteWorktree, setConfirmDeleteWorktree] = useState<WorktreeInfo | null>(null);
+    const [deletingWorktree, setDeletingWorktree] = useState<Record<string, boolean>>({});
 
     const projectName = configEnvelope.config.project?.name || "Worktree Studio";
     const runnableActions = useMemo(() => configuredActions.filter((action) => action.visible !== false), [configuredActions]);
@@ -482,6 +485,30 @@ export function App() {
         }
     }
 
+    async function deleteWorktree(worktree: WorktreeInfo) {
+        setDeletingWorktree((current) => ({ ...current, [worktree.path]: true }));
+        try {
+            const payload = await api<{ removed?: WorktreeInfo; worktrees?: unknown[] }>("/api/worktrees", {
+                method: "DELETE",
+                body: JSON.stringify({ worktree: worktree.path }),
+            });
+            const nextWorktrees = payload.worktrees ? normalizeWorktrees(payload.worktrees) : null;
+            setWorktrees((current) => nextWorktrees ?? current.filter((item) => item.path !== worktree.path));
+            setRuns((current) => current.filter((run) => run.worktreePath !== worktree.path));
+            setSelectedActionByWorktree((current) => {
+                const next = { ...current };
+                delete next[worktree.path];
+                return next;
+            });
+            setActiveWorktree((current) => (current?.path === worktree.path ? null : current));
+            toast.success(`Worktree removed: ${worktree.branch || basename(worktree.path)}`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Could not remove worktree");
+        } finally {
+            setDeletingWorktree((current) => ({ ...current, [worktree.path]: false }));
+        }
+    }
+
     function updateDraft(patch: Partial<WorktreeAction>) {
         if (!selectedDraft) return;
         setDrafts((current) =>
@@ -605,11 +632,13 @@ export function App() {
                                     runs={worktreeRuns}
                                     activeRun={activeRun}
                                     isStoppingRun={Boolean(activeRun && stopping[activeRun.id])}
+                                    isDeleting={Boolean(deletingWorktree[worktree.path])}
                                     onSelectAction={(actionId) =>
                                         setSelectedActionByWorktree((current) => ({ ...current, [worktree.path]: actionId }))
                                     }
                                     onRun={(action) => void runAction(worktree, action)}
                                     onStopRun={(run) => void stopRun(run)}
+                                    onDelete={() => setConfirmDeleteWorktree(worktree)}
                                     onOpen={() => {
                                         setActiveWorktree(worktree);
                                         setSelectedRunId(worktreeRuns[0]?.id || "");
@@ -866,6 +895,34 @@ export function App() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <AlertDialog
+                open={Boolean(confirmDeleteWorktree)}
+                onOpenChange={(open) => !open && setConfirmDeleteWorktree(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove worktree?</AlertDialogTitle>
+                        <AlertDialogDescription className="break-words [word-break:break-word]">
+                            {confirmDeleteWorktree
+                                ? `This removes ${confirmDeleteWorktree.path} from disk. The branch is not deleted.`
+                                : ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                                if (confirmDeleteWorktree) void deleteWorktree(confirmDeleteWorktree);
+                                setConfirmDeleteWorktree(null);
+                            }}
+                        >
+                            Remove
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -878,9 +935,11 @@ function WorktreeCard({
     runs,
     activeRun,
     isStoppingRun,
+    isDeleting,
     onSelectAction,
     onRun,
     onStopRun,
+    onDelete,
     onOpen,
     onOpenSettings,
 }: {
@@ -891,14 +950,23 @@ function WorktreeCard({
     runs: RunInfo[];
     activeRun?: RunInfo;
     isStoppingRun: boolean;
+    isDeleting: boolean;
     onSelectAction: (actionId: string) => void;
     onRun: (action: WorktreeAction) => void;
     onStopRun: (run: RunInfo) => void;
+    onDelete: () => void;
     onOpen: () => void;
     onOpenSettings: () => void;
 }) {
     const selectedAction = actions.find((action) => action.id === selectedActionId) || actions[0];
     const latestRun = runs[0];
+    const deleteDisabled = worktree.removable === false || Boolean(activeRun) || isDeleting;
+    const deleteTitle =
+        worktree.removable === false
+            ? "This worktree cannot be removed"
+            : activeRun
+              ? "Stop the active run before removing"
+              : "Remove worktree";
 
     return (
         <Card
@@ -921,6 +989,21 @@ function WorktreeCard({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         <ActionStatusIcon run={latestRun} />
+                        <Button
+                            title={deleteTitle}
+                            variant="ghost"
+                            size="icon-sm"
+                            className={cn("text-destructive", deleteDisabled && "opacity-50")}
+                            aria-disabled={deleteDisabled}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                if (deleteDisabled) return;
+                                onDelete();
+                            }}
+                        >
+                            {isDeleting ? <Loader2Icon /> : <Trash2Icon />}
+                            <span className="sr-only">Remove worktree</span>
+                        </Button>
                         {activeRun && (
                             <Button
                                 title="Abort"
@@ -1296,6 +1379,7 @@ function normalizeWorktrees(items: unknown[]): WorktreeInfo[] {
             status: String(source.status || (source.dirty ? "dirty" : "ready")),
             statusLine: source.statusLine ? String(source.statusLine) : undefined,
             lastRun: source.lastRun || source.last_run ? String(source.lastRun || source.last_run) : undefined,
+            removable: source.removable === true,
         };
     });
 }
