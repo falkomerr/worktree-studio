@@ -11,6 +11,7 @@ The CLI prints a localhost URL with a session token. The GUI and API exist only 
 Main screen:
 
 - Worktrees: responsive grid of worktrees allowed by `worktrees.include` and `worktrees.exclude`.
+- Main worktree: the primary git worktree from `git worktree list` is marked with a `Main worktree` badge and cannot be removed.
 - Actions: each worktree card has an action selector and a `Run` button.
 - Action status: running and failed actions are shown directly on the worktree card with compact icons.
 - Details: click a worktree card to open its runs and logs.

@@ -109,6 +109,8 @@ interface WorktreeInfo {
     reason?: string;
     lastRun?: string;
     removable?: boolean;
+    isMain?: boolean;
+    isCurrent?: boolean;
 }
 
 interface RunInfo {
@@ -233,7 +235,13 @@ export function App() {
         const needle = query.trim().toLowerCase();
         if (!needle) return worktrees;
         return worktrees.filter((worktree) =>
-            [worktree.path, worktree.branch, worktreeStatus(worktree), worktree.statusLine]
+            [
+                worktree.path,
+                worktree.branch,
+                worktree.isMain ? "main worktree" : undefined,
+                worktreeStatus(worktree),
+                worktree.statusLine,
+            ]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(needle)),
         );
@@ -919,9 +927,26 @@ function WorktreeCard({
         >
             <CardHeader className="gap-3">
                 <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <CardTitle className="truncate text-base">{worktree.branch || "detached"}</CardTitle>
-                        <CardDescription className="truncate">{worktree.path}</CardDescription>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <CardTitle className="min-w-0 max-w-full truncate text-base">
+                                {worktree.branch || "detached"}
+                            </CardTitle>
+                            {worktree.isMain && (
+                                <Badge
+                                    variant="outline"
+                                    className={cn(
+                                        "shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700",
+                                        "dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+                                    )}
+                                >
+                                    Main worktree
+                                </Badge>
+                            )}
+                        </div>
+                        <CardDescription className="max-w-full overflow-hidden text-xs leading-snug break-all [overflow-wrap:anywhere]">
+                            {worktree.path}
+                        </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         <ActionStatusIcon run={latestRun} />
@@ -1316,6 +1341,8 @@ function normalizeWorktrees(items: unknown[]): WorktreeInfo[] {
             statusLine: source.statusLine ? String(source.statusLine) : undefined,
             lastRun: source.lastRun || source.last_run ? String(source.lastRun || source.last_run) : undefined,
             removable: source.removable === true,
+            isMain: source.isMain === true || source.main === true,
+            isCurrent: source.isCurrent === true || source.current === true,
         };
     });
 }

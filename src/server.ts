@@ -168,14 +168,20 @@ async function findRepoWorktree(worktrees: Awaited<ReturnType<typeof listWorktre
 
 async function listGuiWorktrees(repoRoot: string, config: WorktreeStudioConfig) {
     const worktrees = await listConfiguredWorktrees(repoRoot, config);
-    const canonicalRepoRoot = await canonicalPath(repoRoot);
+    const canonicalCurrentRoot = await canonicalPath(repoRoot);
+    const canonicalMainRoot = worktrees[0] ? await canonicalPath(worktrees[0].path) : canonicalCurrentRoot;
     return Promise.all(
-        worktrees.map(async (worktree) => ({
-            ...worktree,
-            removable:
-                !worktree.bare &&
-                (await canonicalPath(worktree.path)) !== canonicalRepoRoot,
-        })),
+        worktrees.map(async (worktree) => {
+            const canonicalWorktree = await canonicalPath(worktree.path);
+            const isMain = canonicalWorktree === canonicalMainRoot;
+            const isCurrent = canonicalWorktree === canonicalCurrentRoot;
+            return {
+                ...worktree,
+                isMain,
+                isCurrent,
+                removable: !worktree.bare && !isMain && !isCurrent,
+            };
+        }),
     );
 }
 

@@ -153,8 +153,11 @@ test("removes a worktree through the API", async () => {
             listedPayload.worktrees.find((worktree) => worktree.branch === "feature/delete-me")?.removable,
             true,
         );
+        const mainWorktree = listedPayload.worktrees.find((worktree) => worktree.branch !== "feature/delete-me");
+        assert.equal(mainWorktree?.removable, false);
+        assert.equal(mainWorktree?.isMain, true);
         assert.equal(
-            listedPayload.worktrees.find((worktree) => worktree.branch !== "feature/delete-me")?.removable,
+            listedPayload.worktrees.find((worktree) => worktree.branch === "feature/delete-me")?.isMain,
             false,
         );
 
@@ -168,6 +171,41 @@ test("removes a worktree through the API", async () => {
         const payload = JSON.parse(text);
         assert.equal(payload.removed?.branch, "feature/delete-me");
         await assert.rejects(stat(worktreeDir), { code: "ENOENT" });
+    } finally {
+        await server.close();
+    }
+});
+
+test("marks the primary git worktree as main when GUI starts from a linked worktree", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wts-server-"));
+    const dir = join(root, "repo");
+    const worktreeDir = join(root, "feature");
+    await mkdir(dir);
+    await execFileAsync("git", ["init"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    await writeFile(join(dir, "README.md"), "test\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-m", "initial"], { cwd: dir });
+    await execFileAsync("git", ["worktree", "add", "-b", "feature/current", worktreeDir], { cwd: dir });
+    await saveProjectConfig(worktreeDir, { version: 1, commands: [], pipelines: [] });
+
+    const server = await startGuiServer(worktreeDir, "127.0.0.1", 0);
+    try {
+        const canonicalDir = await realpath(dir);
+        const canonicalWorktreeDir = await realpath(worktreeDir);
+        const apiUrl = `${new URL(server.url).origin}/api/worktrees?token=${server.token}`;
+        const response = await fetch(apiUrl);
+        const payload = await response.json();
+        const mainWorktree = payload.worktrees.find((worktree) => worktree.path === canonicalDir);
+        const currentWorktree = payload.worktrees.find((worktree) => worktree.path === canonicalWorktreeDir);
+
+        assert.equal(mainWorktree?.isMain, true);
+        assert.equal(mainWorktree?.isCurrent, false);
+        assert.equal(mainWorktree?.removable, false);
+        assert.equal(currentWorktree?.isMain, false);
+        assert.equal(currentWorktree?.isCurrent, true);
+        assert.equal(currentWorktree?.removable, false);
     } finally {
         await server.close();
     }
